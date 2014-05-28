@@ -8,7 +8,11 @@
   ; abacus package exported symbols
   (:export #:amatch 
            #:algebraic-match-with
-           #:algebraic-guard))
+           #:algebraic-guard
+           #:enable-match-syntax
+           :left-bracket
+           :right-bracket
+           :*readtables-stack*))
 
 (in-package #:let-over-lambda)
 
@@ -19,35 +23,51 @@
 ;;http://dorophone.blogspot.com.au/2008/03/common-lisp-reader-macros-simple.html
 ;;https://gist.github.com/chaitanyagupta/9324402
 
+(defvar *readtables-stack* nil)
+
 (defconstant left-bracket #\[)
 (defconstant right-bracket #\])
-(defconstant match-operator '->)
 
-; macr should be entry point only?
+(defmacro enable-match-syntax ()
+  '(eval-when (:compile-toplevel :load-toplevel :execute)
+    (push *readtable* *readtables-stack*)
+    (setq *readtable* (copy-readtable))
+    (set-macro-character right-bracket 'read-delimiter)
+    (set-macro-character left-bracket 'read-left-bracket )))
+
+(defmacro disable-match-syntax ()
+  '(eval-when (:compile-toplevel :load-toplevel :execute)
+    (setq *readtable* (pop *readtables-stack*))))
+
+
+;; When comparing symbols, wqtch where they are interned.
+;; May work in top level as namespace is common, then fail to
+;; work when compiling
 (defun parse-match-elements (elements)
+  (format t "~%; compiling ABACUS: parseing elements")
+  (print elements *standard-output*)
   (let ((args (loop
-               while (and (not (eq (car elements) match-operator)) elements)
+               while (and (not (equal (string (car elements)) (string '->))) elements)
                collect (prog1
                         (car elements)
                          (setf elements (cdr elements))))))
-     (let ((match-expression (cdr elements)))
-       (warn "parse-match-elements [~A -> ~A]" args match-expression)
+     ;;(let ((match-expression (car (cdr elements))))
+ ;;      (warn "ABACUS: parse-match-elements [~A -> ~A]" args (car (cdr elements)))
        (if (not elements) 
-           (error "Empty match [] operation")
+           (error "ABACUS: Empty match [] operation. Args is ~A" args)
            (if (not args)
-               (error "No pattern specifier given to match []")
-               (if (not match-expression)
-                   (error "No match expression given to match [~A]" args)
-                   (if (member match-operator match-expression :test #'equal)
-                       (error "Match expression not allowed to contain -> symbol")
-                       `((,@args) ,@match-expression)
-                   )
-               )
-           )
-       )
-     )
+               (error "ABACUS: No pattern specifier given to match []")
+               (if (not (car (cdr elements)))
+                   (error "ABACUS: No match expression given to match [~A]" args)
+                   (if (member '-> (car (cdr elements)) :test #'equal)
+                       (error "ABACUS: Match expression not allowed to contain -> symbol")
+                       (progn
+;;                       (warn "ABACUS: generating  ~A" `((,@args) (,@(car (cdr elements)))))
+                       `((,@args) (,@(car (cdr elements))))
 
-   ))
+                       )))))
+       ;;)
+     ))
 
 
 (defun read-left-bracket (stream char)
@@ -62,18 +82,6 @@
   (error "Delimiter ~S shouldn't be read alone" char))
 
 
-(defvar *readtables-stack* nil)
-
-(defmacro enable-match-syntax ()
-  '(eval-when (:compile-toplevel :load-toplevel :execute)
-    (push *readtable* *readtables-stack*)
-    (setq *readtable* (copy-readtable))
-    (set-macro-character right-bracket 'read-delimiter)
-    (set-macro-character left-bracket 'read-left-bracket )))
-
-(defmacro disable-match-syntax ()
-  '(eval-when (:compile-toplevel :load-toplevel :execute)
-    (setq *readtable* (pop *readtables-stack*))))
 
 
 (defvar abacus-typespec nil) ; only used at compile time
