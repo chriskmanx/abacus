@@ -40,17 +40,24 @@
     (setq *readtable* (pop *readtables-stack*))))
 
 
-;; When comparing symbols, wqtch where they are interned.
-;; May work in top level as namespace is common, then fail to
-;; work when compiling
+(defun tokenequal (x y)
+  "A function which compares tokens based on aesthetic rendering equivalence
+   deliberately ignoring which package a symbol is interned in; only found to behave
+   differently from equalp in the context of reader macros"
+  (let ((xstring (format nil "~A" x))
+        (ystring (format nil "~A" y)))
+    (equal xstring ystring)))
+
+
 (defun parse-match-elements (elements)
   (format t "~%; compiling ABACUS: parsing elements ~S" elements)
+  
   (let ((args (loop
-               while (and (not (equal (string (car elements)) (string '->))) elements)
-                 collect (prog1
+               while (and (not (tokenequal (car elements) '->)) elements)
+               collect (prog1
                         (car elements)
-                         (setf elements (cdr elements))))))
-    (let ((match-expression (car (cdr elements))))
+                        (setf elements (cdr elements))))))
+    (let ((match-expression (cdr elements)))
        (format t "~%; compiling ABACUS: match expression is  ~S" match-expression)
       
        (if (not elements) 
@@ -59,7 +66,7 @@
                (error "ABACUS: No pattern specifier given to match []")
                (if (not (cdr elements))
                    (error "ABACUS: No match expression given to match [~A]" args)
-                   (if (member '-> (cdr elements) :test #'equal)
+                   (if (member '-> (cdr elements) :test #'tokenequal)
                        (error "ABACUS: Match expression not allowed to contain -> symbol")
                        (progn
                          (format t "~%; compiling ABACUS: generating ~S" 
