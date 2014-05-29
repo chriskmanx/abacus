@@ -70,8 +70,8 @@
                        (error "ABACUS: Match expression not allowed to contain -> symbol")
                        (progn
                          (format t "~%; compiling ABACUS: generating ~S" 
-                            `((,@args) ,@(cdr elements))) 
-                       `((,@args) ,@(cdr elements))
+                            `((,@args) ,@match-expression)) 
+                       `((,@args) ,@match-expression)
 
                        )))))
        )
