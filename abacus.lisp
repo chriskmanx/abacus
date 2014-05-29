@@ -44,29 +44,30 @@
 ;; May work in top level as namespace is common, then fail to
 ;; work when compiling
 (defun parse-match-elements (elements)
-  (format t "~%; compiling ABACUS: parseing elements")
-  (print elements *standard-output*)
+  (format t "~%; compiling ABACUS: parsing elements ~S" elements)
   (let ((args (loop
                while (and (not (equal (string (car elements)) (string '->))) elements)
-               collect (prog1
+                 collect (prog1
                         (car elements)
                          (setf elements (cdr elements))))))
-     ;;(let ((match-expression (car (cdr elements))))
- ;;      (warn "ABACUS: parse-match-elements [~A -> ~A]" args (car (cdr elements)))
+    (let ((match-expression (car (cdr elements))))
+       (format t "~%; compiling ABACUS: match expression is  ~S" match-expression)
+      
        (if (not elements) 
            (error "ABACUS: Empty match [] operation. Args is ~A" args)
            (if (not args)
                (error "ABACUS: No pattern specifier given to match []")
-               (if (not (car (cdr elements)))
+               (if (not (cdr elements))
                    (error "ABACUS: No match expression given to match [~A]" args)
-                   (if (member '-> (car (cdr elements)) :test #'equal)
+                   (if (member '-> (cdr elements) :test #'equal)
                        (error "ABACUS: Match expression not allowed to contain -> symbol")
                        (progn
-;;                       (warn "ABACUS: generating  ~A" `((,@args) (,@(car (cdr elements)))))
-                       `((,@args) (,@(car (cdr elements))))
+                         (format t "~%; compiling ABACUS: generating ~S" 
+                            `((,@args) ,@(cdr elements))) 
+                       `((,@args) ,@(cdr elements))
 
                        )))))
-       ;;)
+       )
      ))
 
 
