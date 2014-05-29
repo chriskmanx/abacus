@@ -10,6 +10,7 @@
            #:algebraic-match-with
            #:algebraic-guard
            #:enable-match-syntax
+           #:disable-match-syntax
            :left-bracket
            :right-bracket
            :*readtables-stack*))
@@ -25,7 +26,7 @@
 
 (defvar *readtables-stack* nil)
 
-(defconstant left-bracket #\[)
+(defconstant left-bracket #\|)
 (defconstant right-bracket #\])
 
 (defmacro enable-match-syntax ()
@@ -105,7 +106,7 @@
  amatch arg &body clauses
  Same as MATCH, except that handling of algebraic types is enabled"
   (if (not (boundp 'abacus-typespec))
-    (defvar abacus-typespec nil))
+      (defvar abacus-typespec nil))
   `(let  ((abacus-it nil))
      (match ,arg ,@clauses)))
 
