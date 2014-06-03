@@ -9,88 +9,105 @@
   (:export #:amatch 
            #:algebraic-match-with
            #:algebraic-guard
-           #:enable-match-syntax
-           #:disable-match-syntax
+           #:use-extended-match-syntax
+           #:disable-extended-match-syntax
            :left-bracket
            :right-bracket
            :*readtables-stack*))
 
+;; Export needed functionality from let-over-lambda
 (in-package #:let-over-lambda)
-
 (export 'defmacro!)
 
+;;; Define package Abacus
 (in-package :abacus)
 
 ;;http://dorophone.blogspot.com.au/2008/03/common-lisp-reader-macros-simple.html
 ;;https://gist.github.com/chaitanyagupta/9324402
 
+;; Stack of Lisp compiler syntax readtables 
 (defvar *readtables-stack* nil)
 
-(defconstant left-bracket #\|)
+;; Our pairwise delimiters
+(defconstant left-bracket #\[)
 (defconstant right-bracket #\])
 
-(defmacro enable-match-syntax ()
+(defmacro use-extended-match-syntax ()
+  "A macro to enable the extended match syntax;
+   eval-when controls when this is executed"
   '(eval-when (:compile-toplevel :load-toplevel :execute)
     (push *readtable* *readtables-stack*)
     (setq *readtable* (copy-readtable))
     (set-macro-character right-bracket 'read-delimiter)
     (set-macro-character left-bracket 'read-left-bracket )))
 
-(defmacro disable-match-syntax ()
+(defmacro disable-extended-match-syntax ()
+  "A macro to disable the extended match syntax;
+   eval-when controls when this is executed"
   '(eval-when (:compile-toplevel :load-toplevel :execute)
     (setq *readtable* (pop *readtables-stack*))))
 
 
 (defun tokenequal (x y)
-  "A function which compares tokens based on aesthetic rendering equivalence
+  "A function which compares tokens based on aesthetic rendering equivalence,
    deliberately ignoring which package a symbol is interned in; only found to behave
-   differently from equalp in the context of reader macros"
+   differently from equalp predicate in the context of reader macros"
   (let ((xstring (format nil "~A" x))
         (ystring (format nil "~A" y)))
     (equal xstring ystring)))
 
 
-(defun parse-match-elements (elements)
-  (format t "~%; compiling ABACUS: parsing elements ~S" elements)
+(defun parse-match-forms (forms)
+  "A macro using defun syntax as we don't care about delaying evaluation of arguments here in
+   that we  will be called from the compiler via (read-left-bracket) dispatching through the 
+   *readtable*. This parses an expression of the form [ token ... token => token ... token ]
+   and returns an s-expression of the form ((token token) (token token)) to be consumed  
+   by algebraic-match-with macro. Malformed syntax raises appropriate compiler errors."
   
-  (let ((args (loop
-               while (and (not (tokenequal (car elements) '->)) elements)
-               collect (prog1
-                        (car elements)
-                        (setf elements (cdr elements))))))
-    (let ((match-expression (cdr elements)))
-       (format t "~%; compiling ABACUS: match expression is  ~S" match-expression)
-      
-       (if (not elements) 
-           (error "ABACUS: Empty match [] operation. Args is ~A" args)
-           (if (not args)
-               (error "ABACUS: No pattern specifier given to match []")
-               (if (not (cdr elements))
-                   (error "ABACUS: No match expression given to match [~A]" args)
-                   (if (member '-> (cdr elements) :test #'tokenequal)
-                       (error "ABACUS: Match expression not allowed to contain -> symbol")
-                       (progn
-                         (format t "~%; compiling ABACUS: generating ~S" 
-                            `((,@args) ,@match-expression)) 
-                       `((,@args) ,@match-expression)
+  (if (not forms)
+    ; case [] empty expression
+    (error "ABACUS: Empty match [] operation")    
+    (progn
+  
+;;      (format t "~%; compiling ABACUS: parsing forms  ~S" forms)
+      (if (not (eq 1 (count '=> forms :test #'tokenequal)))
+          ; case [token...token] but no =>
+          (error "ABACUS: Synax error. Match clause must contain exaxtly 1 => symbol")
 
-                       )))))
-       )
-     ))
+          (let* ((arrow-position (position '=> forms :test #'tokenequal))
+                 (pattern-specifier  (subseq forms  0 arrow-position))) 
+                       
+            ;; Don't make copy of match expression; we retain all formatting
+            ;; We copy the pattern-specifier via subeq though
+            (loop for x from 0 to arrow-position do (setf forms (cdr forms)))        
+            (let ((match-expression forms))
+      
+              (if (not pattern-specifier)
+                  ; case [=> token ... token]
+                  (error "ABACUS: No pattern specifier given to match []")
+                  (if (not match-expression)
+                      ; case [token...token =>] 
+                      (error "ABACUS: No match expression given to match [~S]" pattern-specifier)
+                      (progn
+                        (format t "~%; compiling ABACUS: generating ~S" 
+                                 `(,@pattern-specifier ,@match-expression)) 
+                        `(,@pattern-specifier ,@match-expression))))))))))
 
 
 (defun read-left-bracket (stream char)
   (declare (ignore char))
   (let* ((match-list (read-delimited-list right-bracket stream t)))
-      (parse-match-elements match-list)))
+      (parse-match-forms match-list)))
 
-;; We need this as otherwise the simple expression '[x -> x]
+;; We need this as otherwise the simple expression '[x => x]
 ;; would fail to parse since x] would be read as an atom resulting in END-OF-FILE
 (defun read-delimiter (stream char)
   (declare (ignore stream))
   (error "Delimiter ~S shouldn't be read alone" char))
 
 
+(defmacro acase (&body clauses)
+  (parse-match-forms clauses))
 
 
 (defvar abacus-typespec nil) ; only used at compile time
@@ -125,7 +142,6 @@
   `(progn
      ;;(if (not (boundp 'abacus-it ))
      ;;   (warn "~%ALGEBRAIC-MATCH-WITH no match argument! Did you use algebraic-guard?")
-        (format t "~%ALGEBRAIC-MATCH-WITH on ~A over type ~A" abacus-it abacus-typespec)
      (adt:match ,abacus-typespec abacus-it ,@clauses)))
 
 ;; Note use of o! and g! prefixes.
