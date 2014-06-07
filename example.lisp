@@ -1,4 +1,5 @@
 
+
 ;build & import via (asdf:load-system :bakery)
 (defpackage :bakery
   ; import namespaces from the following packages
@@ -29,7 +30,7 @@
 (adt:defdata (batter-ingredient)
   (milk float)
   (flour float)
-  (eggs integer))()
+  (eggs integer))
 
 (adt:defdata (icing-ingredient)
   (sugar keyword))
